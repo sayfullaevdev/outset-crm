@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from "react";
 import { signIn } from "next-auth/react";
-import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -12,10 +11,8 @@ import { Label } from "@/components/ui/label";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function LoginPage() {
-  const searchParams = useSearchParams();
   const [password, setPassword] = useState("");
   const [isPending, startTransition] = useTransition();
-  const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4">
@@ -35,6 +32,9 @@ export default function LoginPage() {
               event.preventDefault();
 
               startTransition(async () => {
+                const callbackUrl =
+                  new URLSearchParams(window.location.search).get("callbackUrl") || "/dashboard";
+
                 const result = await signIn("credentials", {
                   password,
                   redirect: false,
