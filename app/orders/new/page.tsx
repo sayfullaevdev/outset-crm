@@ -3,6 +3,8 @@ import { OrderForm } from "@/components/order-form";
 import { PageHeader } from "@/components/page-header";
 import { getProducts, getSettings } from "@/lib/data";
 
+export const dynamic = "force-dynamic";
+
 export default async function NewOrderPage() {
   const [products, settings] = await Promise.all([getProducts(), getSettings()]);
 

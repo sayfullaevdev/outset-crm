@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getOrders, getSettings } from "@/lib/data";
 import { convertUsdToUzs, formatUzs } from "@/lib/utils";
 
+export const dynamic = "force-dynamic";
+
 function getWeekBucket(dateString: string) {
   const date = new Date(dateString);
   const now = new Date();

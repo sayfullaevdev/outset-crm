@@ -6,6 +6,8 @@ import { ProductCatalog } from "@/components/product-catalog";
 import { buttonVariants } from "@/components/ui/button";
 import { getProducts, getSettings } from "@/lib/data";
 
+export const dynamic = "force-dynamic";
+
 export default async function ProductsPage() {
   const [products, settings] = await Promise.all([getProducts(), getSettings()]);
 

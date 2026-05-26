@@ -5,6 +5,8 @@ import { PageHeader } from "@/components/page-header";
 import { ProductForm } from "@/components/product-form";
 import { getProductById, getSettings } from "@/lib/data";
 
+export const dynamic = "force-dynamic";
+
 type EditProductPageProps = {
   params: {
     id: string;

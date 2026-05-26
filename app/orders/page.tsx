@@ -6,6 +6,8 @@ import { PageHeader } from "@/components/page-header";
 import { buttonVariants } from "@/components/ui/button";
 import { getOrders, getSettings } from "@/lib/data";
 
+export const dynamic = "force-dynamic";
+
 export default async function OrdersPage() {
   const [orders, settings] = await Promise.all([getOrders(), getSettings()]);
 

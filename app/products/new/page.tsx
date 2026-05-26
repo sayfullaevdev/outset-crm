@@ -3,6 +3,8 @@ import { PageHeader } from "@/components/page-header";
 import { ProductForm } from "@/components/product-form";
 import { getSettings } from "@/lib/data";
 
+export const dynamic = "force-dynamic";
+
 export default async function NewProductPage() {
   const settings = await getSettings();
 
