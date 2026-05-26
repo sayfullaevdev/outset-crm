@@ -47,9 +47,13 @@ export default function LoginPage() {
                 }
 
                 toast.success("Вход выполнен.");
+                const nextUrl =
+                  callbackUrl.includes("/login") || callbackUrl.endsWith("/api/auth/signin")
+                    ? "/dashboard"
+                    : callbackUrl;
 
                 // Full-page redirect avoids session/cookie race conditions with middleware in production.
-                window.location.href = result?.url || callbackUrl;
+                window.location.href = nextUrl;
               });
             }}
           >
