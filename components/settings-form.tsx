@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -9,34 +9,105 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { Settings } from "@/lib/types";
 
+function formatRate(value: number) {
+  return new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 }).format(value);
+}
+
 export function SettingsForm({ initialSettings }: { initialSettings: Settings }) {
   const [isPending, startTransition] = useTransition();
   const [form, setForm] = useState({
     cargoRatePerKg: String(initialSettings.cargoRatePerKg),
     usdToCnyRate: String(initialSettings.usdToCnyRate),
     usdToUzsRate: String(initialSettings.usdToUzsRate),
+    cnyToUzsRate: String(initialSettings.cnyToUzsRate),
     defaultMarkup: String(initialSettings.defaultMarkup),
+    autoExchangeRates: initialSettings.autoExchangeRates,
     telegramBotToken: initialSettings.telegramBotToken,
     telegramChannelId: initialSettings.telegramChannelId,
     telegramOrderUsername: initialSettings.telegramOrderUsername,
     deliveryEstimate: initialSettings.deliveryEstimate,
     googleSheetId: initialSettings.googleSheetId,
   });
+  const [ratesMeta, setRatesMeta] = useState({
+    rateDate: initialSettings.ratesUpdatedAt,
+    source: initialSettings.ratesSource || "cbu.uz",
+  });
+
+  function applyRates(data: {
+    usdToUzsRate: number;
+    usdToCnyRate: number;
+    cnyToUzsRate: number;
+    rateDate?: string;
+    source?: string;
+  }) {
+    setForm((current) => ({
+      ...current,
+      usdToUzsRate: String(data.usdToUzsRate),
+      usdToCnyRate: String(data.usdToCnyRate),
+      cnyToUzsRate: String(data.cnyToUzsRate),
+    }));
+    setRatesMeta({
+      rateDate: data.rateDate || ratesMeta.rateDate,
+      source: data.source || ratesMeta.source,
+    });
+  }
+
+  function refreshRates(syncToSheet = false) {
+    startTransition(async () => {
+      try {
+        const response = await fetch(`/api/rates${syncToSheet ? "?sync=1" : ""}`);
+
+        if (!response.ok) {
+          const data = (await response.json()) as { error?: string };
+          throw new Error(data.error || "Не удалось обновить курсы.");
+        }
+
+        const data = (await response.json()) as {
+          usdToUzsRate: number;
+          usdToCnyRate: number;
+          cnyToUzsRate: number;
+          rateDate?: string;
+          source?: string;
+        };
+
+        applyRates(data);
+        toast.success(syncToSheet ? "Курсы CBU обновлены и записаны в таблицу." : "Курсы CBU обновлены.");
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Ошибка обновления курсов.");
+      }
+    });
+  }
+
+  useEffect(() => {
+    if (initialSettings.autoExchangeRates) {
+      refreshRates();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function saveSettings() {
     startTransition(async () => {
       try {
+        const payload = {
+          ...form,
+          autoExchangeRates: form.autoExchangeRates ? "true" : "false",
+        };
+
         const response = await fetch("/api/settings", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(form),
+          body: JSON.stringify(payload),
         });
 
         if (!response.ok) {
           const data = (await response.json()) as { error?: string };
           throw new Error(data.error || "Не удалось сохранить настройки.");
+        }
+
+        if (form.autoExchangeRates) {
+          await fetch("/api/rates?sync=1");
         }
 
         toast.success("Настройки сохранены.");
@@ -46,35 +117,115 @@ export function SettingsForm({ initialSettings }: { initialSettings: Settings })
     });
   }
 
-  function refreshRates() {
-    startTransition(async () => {
-      try {
-        const response = await fetch("/api/rates");
-
-        if (!response.ok) {
-          const data = (await response.json()) as { error?: string };
-          throw new Error(data.error || "Не удалось обновить курсы.");
-        }
-
-        const data = (await response.json()) as { usdToUzsRate: number; usdToCnyRate: number };
-        setForm((current) => ({
-          ...current,
-          usdToUzsRate: String(data.usdToUzsRate),
-          usdToCnyRate: String(data.usdToCnyRate),
-        }));
-        toast.success("Курсы обновлены.");
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Ошибка обновления курсов.");
-      }
-    });
-  }
+  const ratesReadOnly = form.autoExchangeRates;
 
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
+          <CardTitle>Курсы валют</CardTitle>
+          <CardDescription>
+            По умолчанию курсы берутся с официального API ЦБ Узбекистана (cbu.uz) и обновляются каждый час.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-4">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={form.autoExchangeRates}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  autoExchangeRates: event.target.checked,
+                }))
+              }
+            />
+            <div className="space-y-1 text-sm">
+              <div className="font-medium">Автоматические курсы CBU</div>
+              <div className="text-muted-foreground">
+                Юань и сум подставляются в калькулятор, каталог и заказы без ручного ввода.
+              </div>
+            </div>
+          </label>
+
+          <div className="rounded-lg border bg-muted/50 p-4 text-sm">
+            <div>
+              1 USD = <span className="font-medium text-foreground">{formatRate(Number(form.usdToUzsRate))}</span>{" "}
+              сум
+            </div>
+            <div className="mt-1">
+              1 CNY = <span className="font-medium text-foreground">{formatRate(Number(form.cnyToUzsRate))}</span>{" "}
+              сум
+            </div>
+            {ratesMeta.rateDate ? (
+              <div className="mt-2 text-muted-foreground">
+                Дата курса CBU: {ratesMeta.rateDate}
+                {ratesMeta.source ? ` · ${ratesMeta.source}` : ""}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="cnyToUzsRate">1 юань в сумах (CBU)</Label>
+              <Input
+                id="cnyToUzsRate"
+                type="number"
+                readOnly={ratesReadOnly}
+                value={form.cnyToUzsRate}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, cnyToUzsRate: event.target.value }))
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="usdToUzsRate">1 доллар в сумах (CBU)</Label>
+              <Input
+                id="usdToUzsRate"
+                type="number"
+                readOnly={ratesReadOnly}
+                value={form.usdToUzsRate}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, usdToUzsRate: event.target.value }))
+                }
+              />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="usdToCnyRate">Коэффициент CNY→USD (для формулы)</Label>
+              <Input
+                id="usdToCnyRate"
+                type="number"
+                step="0.0001"
+                readOnly={ratesReadOnly}
+                value={form.usdToCnyRate}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, usdToCnyRate: event.target.value }))
+                }
+              />
+              <p className="text-xs text-muted-foreground">
+                Считается автоматически: курс юаня ÷ курс доллара.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" onClick={() => refreshRates(true)} disabled={isPending}>
+              Обновить сейчас
+            </Button>
+            {form.autoExchangeRates ? (
+              <span className="self-center text-xs text-muted-foreground">
+                При сохранении товара используется актуальный курс CBU.
+              </span>
+            ) : null}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>Финансовые настройки</CardTitle>
-          <CardDescription>Изменяйте карго, курсы для расчета и стандартную наценку.</CardDescription>
+          <CardDescription>Карго и стандартная наценка для новых товаров.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
@@ -98,33 +249,6 @@ export function SettingsForm({ initialSettings }: { initialSettings: Settings })
                 setForm((current) => ({ ...current, defaultMarkup: event.target.value }))
               }
             />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="usdToCnyRate">Курс юаня для расчета</Label>
-            <Input
-              id="usdToCnyRate"
-              type="number"
-              value={form.usdToCnyRate}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, usdToCnyRate: event.target.value }))
-              }
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="usdToUzsRate">Курс перевода в сум</Label>
-            <Input
-              id="usdToUzsRate"
-              type="number"
-              value={form.usdToUzsRate}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, usdToUzsRate: event.target.value }))
-              }
-            />
-          </div>
-          <div className="md:col-span-2">
-            <Button type="button" variant="outline" onClick={refreshRates} disabled={isPending}>
-              Обновить курс из CBU
-            </Button>
           </div>
         </CardContent>
       </Card>
@@ -159,7 +283,7 @@ export function SettingsForm({ initialSettings }: { initialSettings: Settings })
             <Label htmlFor="telegramOrderUsername">Username для заказа</Label>
             <Input
               id="telegramOrderUsername"
-              placeholder="@vornuzz"
+              placeholder="@OutsetAdmin"
               value={form.telegramOrderUsername}
               onChange={(event) =>
                 setForm((current) => ({ ...current, telegramOrderUsername: event.target.value }))

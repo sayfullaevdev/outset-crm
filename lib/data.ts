@@ -1,8 +1,9 @@
 import { DEFAULT_SETTINGS } from "@/lib/constants";
+import { getLiveExchangeRates } from "@/lib/currency";
 import { getRows, getSettingsMap } from "@/lib/google-sheets";
 import { parseProductSheetRow } from "@/lib/sheet-columns";
 import type { Order, Product, Settings } from "@/lib/types";
-import { fromBooleanString, round2 } from "@/lib/utils";
+import { fromBooleanString, parseSheetNumber, round2 } from "@/lib/utils";
 
 function normalizeTelegramOrderUsername(value?: string) {
   const trimmedValue = value?.trim();
@@ -20,27 +21,62 @@ function normalizeTelegramOrderUsername(value?: string) {
   return normalizedValue;
 }
 
+function buildSettingsFromMap(map: Record<string, string>): Settings {
+  const autoExchangeRates = map.autoExchangeRates !== "false";
+
+  const base: Settings = {
+    cargoRatePerKg: parseSheetNumber(map.cargoRatePerKg, DEFAULT_SETTINGS.cargoRatePerKg),
+    usdToCnyRate: parseSheetNumber(map.usdToCnyRate, DEFAULT_SETTINGS.usdToCnyRate),
+    usdToUzsRate: parseSheetNumber(map.usdToUzsRate, DEFAULT_SETTINGS.usdToUzsRate),
+    cnyToUzsRate: parseSheetNumber(
+      map.cnyToUzsRate,
+      round2(DEFAULT_SETTINGS.usdToUzsRate * DEFAULT_SETTINGS.usdToCnyRate),
+    ),
+    defaultMarkup: parseSheetNumber(map.defaultMarkup, DEFAULT_SETTINGS.defaultMarkup),
+    autoExchangeRates,
+    ratesUpdatedAt: map.ratesUpdatedAt || "",
+    ratesSource: map.ratesSource || "",
+    telegramBotToken: map.telegramBotToken || process.env.TELEGRAM_BOT_TOKEN || "",
+    telegramChannelId: map.telegramChannelId || process.env.TELEGRAM_CHANNEL_ID || "",
+    telegramOrderUsername: normalizeTelegramOrderUsername(map.telegramOrderUsername),
+    deliveryEstimate: map.deliveryEstimate || DEFAULT_SETTINGS.deliveryEstimate,
+    googleSheetId: map.googleSheetId || process.env.GOOGLE_SHEET_ID || "",
+  };
+
+  return base;
+}
+
 export async function getSettings(): Promise<Settings> {
   try {
     const map = await getSettingsMap();
+    const base = buildSettingsFromMap(map);
+
+    if (!base.autoExchangeRates) {
+      return base;
+    }
+
+    const live = await getLiveExchangeRates();
 
     return {
-      cargoRatePerKg: Number(map.cargoRatePerKg || DEFAULT_SETTINGS.cargoRatePerKg),
-      usdToCnyRate: Number(map.usdToCnyRate || DEFAULT_SETTINGS.usdToCnyRate),
-      usdToUzsRate: Number(map.usdToUzsRate || DEFAULT_SETTINGS.usdToUzsRate),
-      defaultMarkup: Number(map.defaultMarkup || DEFAULT_SETTINGS.defaultMarkup),
-      telegramBotToken: map.telegramBotToken || process.env.TELEGRAM_BOT_TOKEN || "",
-      telegramChannelId: map.telegramChannelId || process.env.TELEGRAM_CHANNEL_ID || "",
-      telegramOrderUsername: normalizeTelegramOrderUsername(map.telegramOrderUsername),
-      deliveryEstimate: map.deliveryEstimate || DEFAULT_SETTINGS.deliveryEstimate,
-      googleSheetId: map.googleSheetId || process.env.GOOGLE_SHEET_ID || "",
+      ...base,
+      usdToUzsRate: live.usdToUzsRate,
+      usdToCnyRate: live.usdToCnyRate,
+      cnyToUzsRate: live.cnyToUzsRate,
+      ratesUpdatedAt: live.rateDate || base.ratesUpdatedAt,
+      ratesSource: live.source,
     };
   } catch {
+    const live = await getLiveExchangeRates();
+
     return {
       cargoRatePerKg: DEFAULT_SETTINGS.cargoRatePerKg,
-      usdToCnyRate: DEFAULT_SETTINGS.usdToCnyRate,
-      usdToUzsRate: DEFAULT_SETTINGS.usdToUzsRate,
+      usdToCnyRate: live.usdToCnyRate,
+      usdToUzsRate: live.usdToUzsRate,
+      cnyToUzsRate: live.cnyToUzsRate,
       defaultMarkup: DEFAULT_SETTINGS.defaultMarkup,
+      autoExchangeRates: true,
+      ratesUpdatedAt: live.rateDate,
+      ratesSource: live.source,
       telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || "",
       telegramChannelId: process.env.TELEGRAM_CHANNEL_ID || "",
       telegramOrderUsername: DEFAULT_SETTINGS.telegramOrderUsername,
@@ -79,6 +115,8 @@ export async function getProducts(): Promise<Product[]> {
         colors: parsed.colors,
         deliveryEstimate: parsed.deliveryEstimate || DEFAULT_SETTINGS.deliveryEstimate,
         status: parsed.status,
+        salePriceUzs: parsed.salePriceUzs,
+        profitUzs: parsed.profitUzs,
         createdAt: parsed.createdAt,
         updatedAt: parsed.updatedAt,
       };

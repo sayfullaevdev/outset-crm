@@ -9,6 +9,56 @@ export function round2(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
+/** Числа из Google Sheets: «12 800», «2,3», «289 000» */
+export function parseSheetNumber(value?: string | number | null, fallback = 0) {
+  if (value === null || value === undefined || value === "") {
+    return fallback;
+  }
+
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : fallback;
+  }
+
+  let normalized = String(value).trim().replace(/\s/g, "");
+
+  if (!normalized) {
+    return fallback;
+  }
+
+  const hasComma = normalized.includes(",");
+  const hasDot = normalized.includes(".");
+
+  if (hasComma && hasDot) {
+    const lastComma = normalized.lastIndexOf(",");
+    const lastDot = normalized.lastIndexOf(".");
+
+    if (lastComma > lastDot) {
+      normalized = normalized.replace(/\./g, "").replace(",", ".");
+    } else {
+      normalized = normalized.replace(/,/g, "");
+    }
+  } else if (hasComma) {
+    normalized = normalized.replace(",", ".");
+  }
+
+  const parsed = Number(normalized);
+
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+export function normalizeMediaUrl(value?: string | null) {
+  const url = String(value ?? "")
+    .trim()
+    .split("\n")[0]
+    ?.trim();
+
+  if (!url || !/^https?:\/\//i.test(url)) {
+    return "";
+  }
+
+  return url;
+}
+
 export function roundUpToStep(value: number, step = 1000) {
   if (value <= 0) {
     return 0;
@@ -34,6 +84,10 @@ export function formatCny(value: number) {
 }
 
 export function formatUzs(value: number) {
+  if (!Number.isFinite(value)) {
+    return "—";
+  }
+
   return new Intl.NumberFormat("ru-RU", {
     style: "currency",
     currency: "UZS",

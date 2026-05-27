@@ -18,6 +18,9 @@ export type Product = {
   colors: string;
   deliveryEstimate: string;
   status: "active" | "archived";
+  /** Цена и прибыль из таблицы (если пересчёт в UI недоступен) */
+  salePriceUzs?: number;
+  profitUzs?: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -52,7 +55,13 @@ export type Settings = {
   cargoRatePerKg: number;
   usdToCnyRate: number;
   usdToUzsRate: number;
+  /** 1 CNY в сумах (CBU), для отображения */
+  cnyToUzsRate: number;
   defaultMarkup: number;
+  /** Автоматически подставлять курсы с cbu.uz */
+  autoExchangeRates: boolean;
+  ratesUpdatedAt: string;
+  ratesSource: string;
   telegramBotToken: string;
   telegramChannelId: string;
   telegramOrderUsername: string;

@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -8,11 +7,12 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ProductThumbnail } from "@/components/product-thumbnail";
 import { CATEGORY_LABELS } from "@/lib/constants";
 import { buildTelegramPost } from "@/lib/posts";
 import { calculatePricing } from "@/lib/pricing";
 import type { Product, Settings } from "@/lib/types";
-import { formatCny, formatUzs, roundUpToStep } from "@/lib/utils";
+import { formatCny, formatUzs, parseSheetNumber, roundUpToStep } from "@/lib/utils";
 
 type ProductCatalogProps = {
   products: Product[];
@@ -30,15 +30,32 @@ export function ProductCatalog({ products, settings }: ProductCatalogProps) {
     return [...items].sort((a, b) => Number(new Date(b.createdAt)) - Number(new Date(a.createdAt)));
   }, [items]);
 
-  function buildMessage(product: Product) {
+  function resolvePricing(product: Product) {
+    const markup =
+      parseSheetNumber(product.markupMultiplier, settings.defaultMarkup) || settings.defaultMarkup;
+
     const pricing = calculatePricing({
-      priceCny: product.priceCny,
+      priceCny: parseSheetNumber(product.priceCny),
       usdToCnyRate: settings.usdToCnyRate,
       cargoRatePerKg: settings.cargoRatePerKg,
       usdToUzsRate: settings.usdToUzsRate,
-      weightKg: product.estimatedWeightKg,
-      markupMultiplier: product.markupMultiplier,
+      weightKg: parseSheetNumber(product.estimatedWeightKg),
+      markupMultiplier: markup,
     });
+
+    let salePrice = roundUpToStep(pricing.productSalePriceUzs);
+    let profit = salePrice - roundUpToStep(pricing.itemCostUzs);
+
+    if (!Number.isFinite(salePrice) && product.salePriceUzs) {
+      salePrice = roundUpToStep(product.salePriceUzs);
+      profit = roundUpToStep(product.profitUzs ?? salePrice - roundUpToStep(pricing.itemCostUzs));
+    }
+
+    return { pricing, salePrice, profit };
+  }
+
+  function buildMessage(product: Product) {
+    const { pricing } = resolvePricing(product);
 
     return buildTelegramPost({
       productSalePriceUzs: pricing.productSalePriceUzs,
@@ -109,34 +126,13 @@ export function ProductCatalog({ products, settings }: ProductCatalogProps) {
   return (
     <div className="space-y-4">
       {sortedItems.map((product) => {
-        const pricing = calculatePricing({
-          priceCny: product.priceCny,
-          usdToCnyRate: settings.usdToCnyRate,
-          cargoRatePerKg: settings.cargoRatePerKg,
-          usdToUzsRate: settings.usdToUzsRate,
-          weightKg: product.estimatedWeightKg,
-          markupMultiplier: product.markupMultiplier,
-        });
-        const productSalePrice = pricing.productSalePriceUzs;
-        const productProfit = pricing.productSalePriceUzs - pricing.itemCostUzs;
+        const { salePrice: productSalePrice, profit: productProfit } = resolvePricing(product);
 
         return (
           <Card key={product.id}>
             <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-start">
-              <div className="relative h-24 w-24 overflow-hidden rounded-lg border sm:h-28 sm:w-28">
-                {product.photoUrl ? (
-                  <Image
-                    src={product.photoUrl}
-                    alt={product.name}
-                    fill
-                    className="object-cover"
-                    unoptimized
-                  />
-                ) : (
-                  <div className="flex h-full items-center justify-center bg-muted text-sm text-muted-foreground">
-                    Нет фото
-                  </div>
-                )}
+              <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-lg border sm:h-28 sm:w-28">
+                <ProductThumbnail src={product.photoUrl} alt={product.name} />
               </div>
 
               <div className="min-w-0 flex-1 space-y-3">

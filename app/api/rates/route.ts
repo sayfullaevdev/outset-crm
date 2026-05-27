@@ -1,16 +1,16 @@
 import { NextResponse } from "next/server";
 
-import { getSettings } from "@/lib/data";
-import { fetchUsdToUzsRate } from "@/lib/currency";
+import { getLiveExchangeRates, syncLiveRatesToSheet } from "@/lib/currency";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const settings = await getSettings();
-    const usdToUzsRate = await fetchUsdToUzsRate();
+    const { searchParams } = new URL(request.url);
+    const sync = searchParams.get("sync") === "1";
+    const live = sync ? await syncLiveRatesToSheet() : await getLiveExchangeRates();
 
     return NextResponse.json({
-      usdToUzsRate,
-      usdToCnyRate: settings.usdToCnyRate,
+      ...live,
+      synced: sync,
     });
   } catch (error) {
     return NextResponse.json(

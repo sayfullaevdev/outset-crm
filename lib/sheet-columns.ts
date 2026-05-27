@@ -1,5 +1,6 @@
 import { CATEGORY_LABELS } from "@/lib/constants";
 import type { PricingBreakdown } from "@/lib/types";
+import { normalizeMediaUrl, parseSheetNumber } from "@/lib/utils";
 
 export type ProductSheetField =
   | "id"
@@ -128,12 +129,14 @@ function parseGalleryCell(rawValue: string, photoUrl: string) {
     const parsed = JSON.parse(rawValue) as unknown;
 
     if (Array.isArray(parsed)) {
-      return parsed.filter((value): value is string => typeof value === "string" && value.length > 0);
+      return parsed
+        .map((value) => (typeof value === "string" ? normalizeMediaUrl(value) : ""))
+        .filter(Boolean);
     }
   } catch {
     return rawValue
       .split("\n")
-      .map((value) => value.trim())
+      .map((value) => normalizeMediaUrl(value))
       .filter(Boolean);
   }
 
@@ -192,9 +195,9 @@ export function buildProductSheetRow(input: {
 }
 
 export function parseProductSheetRow(raw: Record<string, string>) {
-  const salePriceUzs = Number(raw.salePriceUzs || 0);
-  const itemCostUzs = Number(raw.itemCostUzs || 0);
-  const profitFromSheet = Number(raw.profitUzs || 0);
+  const salePriceUzs = parseSheetNumber(raw.salePriceUzs);
+  const itemCostUzs = parseSheetNumber(raw.itemCostUzs);
+  const profitFromSheet = parseSheetNumber(raw.profitUzs);
   const profitUzs =
     profitFromSheet > 0 ? profitFromSheet : salePriceUzs > 0 ? salePriceUzs - itemCostUzs : 0;
 
@@ -202,11 +205,11 @@ export function parseProductSheetRow(raw: Record<string, string>) {
     id: raw.id,
     name: raw.name,
     link: raw.link,
-    priceCny: Number(raw.priceCny || 0),
+    priceCny: parseSheetNumber(raw.priceCny),
     category: parseCategory(raw.category) as keyof typeof CATEGORY_LABELS,
-    estimatedWeightKg: Number(raw.estimatedWeightKg || 0),
-    markupMultiplier: Number(raw.markupMultiplier || 0),
-    photoUrl: raw.photoUrl || "",
+    estimatedWeightKg: parseSheetNumber(raw.estimatedWeightKg),
+    markupMultiplier: parseSheetNumber(raw.markupMultiplier),
+    photoUrl: normalizeMediaUrl(raw.photoUrl),
     galleryUrls: parseGalleryCell(raw.galleryUrls, raw.photoUrl),
     notes: raw.notes || "",
     sizes: raw.sizes || "",
