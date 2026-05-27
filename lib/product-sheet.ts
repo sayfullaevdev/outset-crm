@@ -23,7 +23,7 @@ export async function buildProductRowForSheet(input: {
   const settings = await getSettings();
   const pricing = calculatePricing({
     priceCny: input.priceCny,
-    estimatedWeightKg: input.estimatedWeightKg,
+    weightKg: input.estimatedWeightKg,
     markupMultiplier: input.markupMultiplier,
     cargoRatePerKg: settings.cargoRatePerKg,
     usdToCnyRate: settings.usdToCnyRate,
