@@ -229,7 +229,7 @@ export function SettingsForm({ initialSettings }: { initialSettings: Settings })
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="cargoRatePerKg">Карго за кг (базовый тариф)</Label>
+            <Label htmlFor="cargoRatePerKg">Карго за 100г (сум)</Label>
             <Input
               id="cargoRatePerKg"
               type="number"
@@ -238,6 +238,7 @@ export function SettingsForm({ initialSettings }: { initialSettings: Settings })
                 setForm((current) => ({ ...current, cargoRatePerKg: event.target.value }))
               }
             />
+            <p className="text-xs text-muted-foreground">Как ты и хотел: ставка карго задаётся отдельно и не зависит от курса USD.</p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="defaultMarkup">Стандартная наценка</Label>

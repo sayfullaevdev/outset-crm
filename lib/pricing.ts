@@ -26,20 +26,26 @@ export function calculatePricing(input: PricingInput): PricingBreakdown {
 
   const itemCostUsd = round2(input.priceCny * input.usdToCnyRate);
   const itemCostUzs = round2(itemCostUsd * input.usdToUzsRate);
-  const cargoCostUsd = round2(input.weightKg * input.cargoRatePerKg);
-  const cargoCostUzs = round2(cargoCostUsd * input.usdToUzsRate);
-  const totalCostUsd = round2(itemCostUsd + cargoCostUsd);
-  const totalCostUzs = round2(totalCostUsd * input.usdToUzsRate);
+
+  // Карго хранится/вводится как тариф "за 100г" в суммах.
+  // Поэтому: вес(кг) * 10 = количество "100г".
+  const cargoCostUzs = round2(input.weightKg * 10 * input.cargoRatePerKg);
+  // Для совместимости с существующими USD-полями пересчитываем карго обратно в USD,
+  // но финальная логика по сумам не зависит от курса.
+  const cargoCostUsd = input.usdToUzsRate > 0 ? round2(cargoCostUzs / input.usdToUzsRate) : 0;
+
+  const totalCostUzs = round2(itemCostUzs + cargoCostUzs);
+  const totalCostUsd = input.usdToUzsRate > 0 ? round2(totalCostUzs / input.usdToUzsRate) : 0;
   const productSalePriceUsd = round2(itemCostUsd * input.markupMultiplier);
   const productSalePriceUzs = round2(productSalePriceUsd * input.usdToUzsRate);
   const salePriceUsd = round2(totalCostUsd * input.markupMultiplier);
-  const salePriceUzs = round2(salePriceUsd * input.usdToUzsRate);
+  const salePriceUzs = round2(totalCostUzs * input.markupMultiplier);
   const prepaymentUsd = round2(salePriceUsd * 0.5);
   const prepaymentUzs = round2(prepaymentUsd * input.usdToUzsRate);
   const finalPaymentUsd = round2(salePriceUsd - prepaymentUsd);
-  const finalPaymentUzs = round2(finalPaymentUsd * input.usdToUzsRate);
-  const profitUsd = round2(salePriceUsd - totalCostUsd);
-  const profitUzs = round2(profitUsd * input.usdToUzsRate);
+  const finalPaymentUzs = round2(salePriceUzs - prepaymentUzs);
+  const profitUzs = round2(salePriceUzs - totalCostUzs);
+  const profitUsd = input.usdToUzsRate > 0 ? round2(profitUzs / input.usdToUzsRate) : 0;
 
   return {
     itemCostUsd,

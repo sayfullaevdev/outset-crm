@@ -47,7 +47,9 @@ export const ORDER_STATUS_LABELS: Record<(typeof ORDER_STATUSES)[number], string
 };
 
 export const DEFAULT_SETTINGS = {
-  cargoRatePerKg: 10,
+  // Тариф карго в суммах за 100г.
+  // Вес(кг) * 10 = количество "100г".
+  cargoRatePerKg: 0,
   usdToCnyRate: 0.14,
   usdToUzsRate: 12800,
   defaultMarkup: 2.3,

@@ -48,7 +48,8 @@ export default async function AnalyticsPage() {
 
   const inTransitOrders = orders.filter((order) => order.inTransit);
   const inTransitWeight = inTransitOrders.reduce((sum, order) => sum + order.weightKg, 0);
-  const expectedCargoCost = inTransitWeight * settings.cargoRatePerKg * settings.usdToUzsRate;
+  // settings.cargoRatePerKg = тариф за 100г в суммах
+  const expectedCargoCost = inTransitWeight * 10 * settings.cargoRatePerKg;
 
   const pendingClients = orders.filter((order) => !order.finalPaymentReceived);
 

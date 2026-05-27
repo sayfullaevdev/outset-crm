@@ -63,12 +63,12 @@ export function ProductForm({ initialProduct, settings }: ProductFormProps) {
   const previewMessage = useMemo(() => {
     return buildTelegramPost({
       productSalePriceUzs: pricing.productSalePriceUzs,
-      cargoRate100gUzs: roundUpToStep((settings.cargoRatePerKg * settings.usdToUzsRate) / 10),
+      cargoRate100gUzs: roundUpToStep(settings.cargoRatePerKg),
       sizes: form.sizes,
       deliveryEstimate: form.deliveryEstimate || settings.deliveryEstimate,
       orderUsername: settings.telegramOrderUsername,
     });
-  }, [form.deliveryEstimate, form.sizes, pricing.productSalePriceUzs, settings.cargoRatePerKg, settings.deliveryEstimate, settings.telegramOrderUsername, settings.usdToUzsRate]);
+  }, [form.deliveryEstimate, form.sizes, pricing.productSalePriceUzs, settings.cargoRatePerKg, settings.deliveryEstimate, settings.telegramOrderUsername]);
 
   const previewImages = useMemo(() => {
     return [form.photoUrl, ...form.galleryUrls.filter((imageUrl) => imageUrl !== form.photoUrl)]

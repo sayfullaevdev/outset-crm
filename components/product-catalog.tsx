@@ -59,7 +59,7 @@ export function ProductCatalog({ products, settings }: ProductCatalogProps) {
 
     return buildTelegramPost({
       productSalePriceUzs: pricing.productSalePriceUzs,
-      cargoRate100gUzs: roundUpToStep((settings.cargoRatePerKg * settings.usdToUzsRate) / 10),
+      cargoRate100gUzs: roundUpToStep(settings.cargoRatePerKg),
       sizes: product.sizes,
       deliveryEstimate: product.deliveryEstimate || settings.deliveryEstimate,
       orderUsername: settings.telegramOrderUsername,
