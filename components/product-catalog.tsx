@@ -9,7 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CATEGORY_LABELS } from "@/lib/constants";
-import { hydrateProductsWithStoredMedia } from "@/lib/product-media-store";
 import { buildTelegramPost } from "@/lib/posts";
 import { calculatePricing } from "@/lib/pricing";
 import type { Product, Settings } from "@/lib/types";
@@ -23,27 +22,8 @@ type ProductCatalogProps = {
 export function ProductCatalog({ products, settings }: ProductCatalogProps) {
   const [items, setItems] = useState(products);
   const [isPending, startTransition] = useTransition();
-
   useEffect(() => {
-    let isActive = true;
-
-    hydrateProductsWithStoredMedia(products)
-      .then((hydratedProducts) => {
-        if (!isActive) {
-          return;
-        }
-
-        setItems(hydratedProducts);
-      })
-      .catch(() => {
-        if (isActive) {
-          setItems(products);
-        }
-      });
-
-    return () => {
-      isActive = false;
-    };
+    setItems(products);
   }, [products]);
 
   const sortedItems = useMemo(() => {

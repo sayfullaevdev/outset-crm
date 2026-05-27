@@ -14,7 +14,6 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { CATEGORY_LABELS, DEFAULT_CATEGORY_WEIGHTS, PRODUCT_CATEGORIES } from "@/lib/constants";
-import { loadProductMedia, saveProductMedia } from "@/lib/product-media-store";
 import { buildTelegramPost } from "@/lib/posts";
 import { calculatePricing } from "@/lib/pricing";
 import type { Product, Settings } from "@/lib/types";
@@ -77,37 +76,59 @@ export function ProductForm({ initialProduct, settings }: ProductFormProps) {
       .slice(0, 4);
   }, [form.galleryUrls, form.photoUrl]);
 
-  useEffect(() => {
-    let isActive = true;
+  async function uploadImagesIfNeeded() {
+    const candidates = [form.photoUrl, ...form.galleryUrls].filter(Boolean);
+    const needsUpload = candidates.filter((url) => url.startsWith("data:"));
 
-    if (!initialProduct?.id) {
-      return undefined;
+    if (!needsUpload.length) {
+      return {
+        photoUrl: form.photoUrl,
+        galleryUrls: form.galleryUrls,
+      };
     }
 
-    loadProductMedia(initialProduct.id)
-      .then((storedMedia) => {
-        if (!isActive || !storedMedia) {
-          return;
-        }
+    const response = await fetch("/api/media/upload", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        images: needsUpload,
+        folder: "products",
+      }),
+    });
 
-        setForm((current) => ({
-          ...current,
-          photoUrl: storedMedia.photoUrl || current.photoUrl,
-          galleryUrls: storedMedia.galleryUrls.length ? storedMedia.galleryUrls : current.galleryUrls,
-        }));
-      })
-      .catch(() => undefined);
+    const data = (await response.json()) as { error?: string; urls?: string[] };
+    if (!response.ok || !data.urls?.length) {
+      throw new Error(data.error || "Не удалось загрузить фото в Supabase.");
+    }
 
-    return () => {
-      isActive = false;
+    const map = new Map<string, string>();
+    needsUpload.forEach((src, index) => {
+      map.set(src, data.urls?.[index] || src);
+    });
+
+    const nextPhotoUrl = map.get(form.photoUrl) || form.photoUrl;
+    const nextGalleryUrls = form.galleryUrls.map((url) => map.get(url) || url);
+
+    setForm((current) => ({
+      ...current,
+      photoUrl: nextPhotoUrl,
+      galleryUrls: nextGalleryUrls,
+    }));
+
+    return {
+      photoUrl: nextPhotoUrl,
+      galleryUrls: nextGalleryUrls,
     };
-  }, [initialProduct?.id]);
+  }
 
   async function saveProduct() {
+    const uploaded = await uploadImagesIfNeeded();
     const payload = {
       ...form,
-      photoUrl: "",
-      galleryUrls: [],
+      photoUrl: uploaded.photoUrl,
+      galleryUrls: uploaded.galleryUrls,
     };
 
     const response = await fetch(isEdit ? `/api/products/${initialProduct?.id}` : "/api/products", {
@@ -122,19 +143,6 @@ export function ProductForm({ initialProduct, settings }: ProductFormProps) {
 
     if (!response.ok) {
       throw new Error(data.error || "Не удалось сохранить товар.");
-    }
-
-    const productId = data.product?.id || initialProduct?.id;
-
-    if (productId) {
-      try {
-        await saveProductMedia(productId, {
-          photoUrl: form.photoUrl,
-          galleryUrls: form.galleryUrls,
-        });
-      } catch {
-        toast.error("Товар сохранен, но фото не удалось сохранить локально.");
-      }
     }
 
     return data;

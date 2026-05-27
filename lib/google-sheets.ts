@@ -1,24 +1,14 @@
 import { google, sheets_v4 } from "googleapis";
 
+import {
+  getProductSheetHeaders,
+  productRowToSheetValues,
+  resolveProductFieldKey,
+  sheetHeadersToProductRow,
+} from "@/lib/sheet-columns";
+
 const SHEET_TABS = {
-  products: [
-    "id",
-    "name",
-    "link",
-    "priceCny",
-    "category",
-    "estimatedWeightKg",
-    "markupMultiplier",
-    "photoUrl",
-    "galleryUrls",
-    "notes",
-    "sizes",
-    "colors",
-    "deliveryEstimate",
-    "status",
-    "createdAt",
-    "updatedAt",
-  ],
+  products: getProductSheetHeaders(),
   orders: [
     "id",
     "clientName",
@@ -149,6 +139,10 @@ export async function getRows<T extends Record<string, string>>(sheetName: Sheet
 
   const [headers = [], ...rows] = response.data.values ?? [];
 
+  if (sheetName === "products") {
+    return rows.map((row) => sheetHeadersToProductRow(headers, row)) as T[];
+  }
+
   return rows.map((row) => {
     return headers.reduce(
       (acc, header, index) => {
@@ -164,7 +158,10 @@ export async function appendRow(sheetName: SheetTab, row: Record<string, string>
   await ensureBaseSheets();
   const sheets = await getSheetsClient();
   const headers = SHEET_TABS[sheetName];
-  const values = headers.map((header) => row[header] ?? "");
+  const values =
+    sheetName === "products"
+      ? productRowToSheetValues(row)
+      : headers.map((header) => row[header] ?? "");
 
   await sheets.spreadsheets.values.append({
     spreadsheetId: getSpreadsheetId(),
@@ -190,21 +187,38 @@ export async function updateRow(
 
   const allRows = rows.data.values ?? [];
   const headers = allRows[0] ?? [];
-  const rowIndex = allRows.findIndex((row, index) => index > 0 && row[0] === rowId);
+  const idColumnIndex =
+    sheetName === "products"
+      ? headers.findIndex((header) => resolveProductFieldKey(header) === "id")
+      : 0;
+  const rowIndex = allRows.findIndex(
+    (row, index) => index > 0 && row[idColumnIndex >= 0 ? idColumnIndex : 0] === rowId,
+  );
 
   if (rowIndex === -1) {
     throw new Error(`Строка ${rowId} в листе ${sheetName} не найдена.`);
   }
 
-  const current = headers.reduce(
-    (acc, header, index) => {
-      acc[header] = allRows[rowIndex][index] ?? "";
-      return acc;
-    },
-    {} as Record<string, string>,
-  );
+  const current =
+    sheetName === "products"
+      ? sheetHeadersToProductRow(headers, allRows[rowIndex])
+      : headers.reduce(
+          (acc, header, index) => {
+            acc[header] = allRows[rowIndex][index] ?? "";
+            return acc;
+          },
+          {} as Record<string, string>,
+        );
 
-  const nextRow = headers.map((header) => data[header] ?? current[header] ?? "");
+  const merged =
+    sheetName === "products"
+      ? { ...current, ...data }
+      : Object.fromEntries(headers.map((header) => [header, data[header] ?? current[header] ?? ""]));
+
+  const nextRow =
+    sheetName === "products"
+      ? productRowToSheetValues(merged)
+      : headers.map((header) => merged[header] ?? "");
 
   await sheets.spreadsheets.values.update({
     spreadsheetId: getSpreadsheetId(),

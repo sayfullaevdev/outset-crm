@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { PRODUCT_CATEGORIES } from "@/lib/constants";
 import { appendRow } from "@/lib/google-sheets";
+import { buildProductRowForSheet } from "@/lib/product-sheet";
 import { createId } from "@/lib/utils";
 
 export async function GET() {
@@ -24,24 +25,27 @@ export async function POST(request: Request) {
     }
 
     const now = new Date().toISOString();
-    const row = {
+    const galleryUrls = Array.isArray(body.galleryUrls)
+      ? body.galleryUrls.filter((value): value is string => typeof value === "string")
+      : [];
+
+    const row = await buildProductRowForSheet({
       id: createId("prd"),
       name: String(body.name),
       link: String(body.link),
-      priceCny: String(Number(body.priceCny || 0)),
-      category: String(body.category),
-      estimatedWeightKg: String(Number(body.estimatedWeightKg || 0)),
-      markupMultiplier: String(Number(body.markupMultiplier || 0)),
-      photoUrl: "",
-      galleryUrls: "[]",
-      notes: String(body.notes || ""),
+      priceCny: Number(body.priceCny || 0),
+      category: body.category as (typeof PRODUCT_CATEGORIES)[number],
+      estimatedWeightKg: Number(body.estimatedWeightKg || 0),
+      markupMultiplier: Number(body.markupMultiplier || 0),
       sizes: String(body.sizes || ""),
-      colors: String(body.colors || ""),
       deliveryEstimate: String(body.deliveryEstimate || ""),
       status: String(body.status || "active"),
+      photoUrl: String(body.photoUrl || ""),
+      galleryUrls,
+      notes: String(body.notes || ""),
       createdAt: now,
       updatedAt: now,
-    };
+    });
 
     await appendRow("products", row);
 

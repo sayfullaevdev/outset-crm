@@ -1,28 +1,8 @@
 import { DEFAULT_SETTINGS } from "@/lib/constants";
 import { getRows, getSettingsMap } from "@/lib/google-sheets";
+import { parseProductSheetRow } from "@/lib/sheet-columns";
 import type { Order, Product, Settings } from "@/lib/types";
 import { fromBooleanString, round2 } from "@/lib/utils";
-
-function parseGalleryUrls(rawValue?: string, photoUrl?: string) {
-  if (!rawValue) {
-    return photoUrl ? [photoUrl] : [];
-  }
-
-  try {
-    const parsed = JSON.parse(rawValue) as unknown;
-
-    if (Array.isArray(parsed)) {
-      return parsed.filter((value): value is string => typeof value === "string" && value.length > 0);
-    }
-  } catch {
-    return rawValue
-      .split("\n")
-      .map((value) => value.trim())
-      .filter(Boolean);
-  }
-
-  return photoUrl ? [photoUrl] : [];
-}
 
 function normalizeTelegramOrderUsername(value?: string) {
   const trimmedValue = value?.trim();
@@ -79,24 +59,30 @@ export async function getProducts(): Promise<Product[]> {
     rows = [];
   }
 
-  return rows.map((row) => ({
-    id: row.id,
-    name: row.name,
-    link: row.link,
-    priceCny: Number(row.priceCny || 0),
-    category: row.category as Product["category"],
-    estimatedWeightKg: Number(row.estimatedWeightKg || 0),
-    markupMultiplier: Number(row.markupMultiplier || 0),
-    photoUrl: row.photoUrl,
-    galleryUrls: parseGalleryUrls(row.galleryUrls, row.photoUrl),
-    notes: row.notes,
-    sizes: row.sizes,
-    colors: row.colors,
-    deliveryEstimate: row.deliveryEstimate || DEFAULT_SETTINGS.deliveryEstimate,
-    status: (row.status as Product["status"]) || "active",
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-  }));
+  return rows
+    .filter((row) => row.id)
+    .map((row) => {
+      const parsed = parseProductSheetRow(row);
+
+      return {
+        id: parsed.id,
+        name: parsed.name,
+        link: parsed.link,
+        priceCny: parsed.priceCny,
+        category: parsed.category,
+        estimatedWeightKg: parsed.estimatedWeightKg,
+        markupMultiplier: parsed.markupMultiplier,
+        photoUrl: parsed.photoUrl,
+        galleryUrls: parsed.galleryUrls,
+        notes: parsed.notes,
+        sizes: parsed.sizes,
+        colors: parsed.colors,
+        deliveryEstimate: parsed.deliveryEstimate || DEFAULT_SETTINGS.deliveryEstimate,
+        status: parsed.status,
+        createdAt: parsed.createdAt,
+        updatedAt: parsed.updatedAt,
+      };
+    });
 }
 
 export async function getProductById(id: string) {
